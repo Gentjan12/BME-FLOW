@@ -1,1 +1,112 @@
+import os
+import scipy
+from scipy import io
+import time
+import csv
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from scipy.optimize import curve_fit
+from scipy.optimize import fsolve
+from sklearn.metrics import r2_score
+from scipy.optimize import newton
+from scipy.optimize import root_scalar
+
+# Adobe Colors in Hex Valentine colorblind friendly palette
+colors = {
+    "Color 1": "#016FEB",  # Bright Blue 
+    "Color 2": "#00326A",  # Deep Navy Blue
+    "Color 3": "#749AFF",  # Light Sky Blue
+    "Color 4": "#9AA5D8",  # Soft Lavender Blue
+    "Color 5": "#827742",  # Olive Brown
+    "Color 6": "#463F0F"   # Dark Olive Green
+}
+
+# Input data for absorbance
+Corrected_Absorbance_A = np.array([2.0868, 0.453, 0.1738, 0.0537, 0.0058, 0.0027, -0.0001, -0.002, -0.0036])
+Corrected_Absorbance_B = np.array([2.1767, 0.4686, 0.1718, 0.0621, 0.0208, -0.0012, -0.0006, -0.0053, -0.0029])
+Corrected_Absorbance_C = np.array([2.1575, 0.4414, 0.1783, 0.044, 0.0129, 0.0024, 0.0014, -0.0025, 0.0066])
+
+# Calculate the average corrected absorbance for Plate 1
+Corrected_Absorbance_Avg = np.mean([Corrected_Absorbance_A, Corrected_Absorbance_B, Corrected_Absorbance_C], axis=0)
+
+Corrected_Absorbance_A2 = np.array([2.4984, 0.5478, 0.2125, 0.0678, 0.0094, 0.0127, 0.0034, 0.0002, -0.0029])
+Corrected_Absorbance_B2 = np.array([2.562, 0.5693, 0.2026, 0.0781, 0.0252, 0.0018, 0.0028, -0.0039, -0.0033])
+Corrected_Absorbance_C2 = np.array([2.5459, 0.5398, 0.2158, 0.0562, 0.0164, 0.0017, 0.0031, 0.005, 0.0063])
+
+# Calculate the average corrected absorbance for Plate 2
+Corrected_Absorbance_Avg2 = np.mean([Corrected_Absorbance_A2, Corrected_Absorbance_B2, Corrected_Absorbance_C2], axis=0)
+
+# Define the sigmoid fitting function
+def Y(X, A, B, C, D, E):
+    return (A - D) / (1 + (X / C) ** B) ** E + D
+
+# Define concentrations
+conc = np.array([200, 40, 20, 10, 5, 2.5, 1, 0.5, 0])
+
+# Fit the curves for Plate 1
+initial_guess = [10, 1, 50, 1, 1]
+bounds = ([0, 0.1, 0.1, 0.1, 0.448], [100, 5, 200, 15, 5])
+popt, _ = curve_fit(Y, conc, Corrected_Absorbance_Avg, p0=initial_guess, bounds=bounds, maxfev=5000)
+X = np.logspace(-1, np.log10(200), 100)
+fitted_Y = Y(X, *popt)
+
+# Fit the curves for Plate 2
+popt2, _ = curve_fit(Y, conc, Corrected_Absorbance_Avg2, p0=initial_guess, bounds=bounds, maxfev=5000)
+fitted_Y2 = Y(X, *popt2)
+
+# Prepare data for plotting
+data1 = pd.DataFrame({"Concentration": conc, "Corrected Absorbance": Corrected_Absorbance_Avg, "Time": "t=1.5h"})
+data2 = pd.DataFrame({"Concentration": conc, "Corrected Absorbance": Corrected_Absorbance_Avg2, "Time": "t=16h"})
+fitted_data1 = pd.DataFrame({"Concentration": X, "Fitted Absorbance": fitted_Y, "Time": "t=1.5h"})
+fitted_data2 = pd.DataFrame({"Concentration": X, "Fitted Absorbance": fitted_Y2, "Time": "t=16h"})
+
+# Combine scatter and fitted data
+scatter_data = pd.concat([data1, data2], ignore_index=True)
+fitted_data = pd.concat([fitted_data1, fitted_data2], ignore_index=True)
+
+# Add two new points
+extra_conc = [18.86501258, 17.80196721]
+extra_absorbance = [0.1539, 0.17206666666667]
+
+# Plot the data
+plt.figure(figsize=(3.14, 3.925), dpi=300)
+
+# Plot fitted curves
+sns.lineplot(data=fitted_data, x="Concentration", y="Fitted Absorbance", hue="Time", palette=[colors["Color 1"], colors["Color 3"]], legend=True, zorder=1)
+
+# Plot scatter points
+sns.scatterplot(data=scatter_data, x="Concentration", y="Corrected Absorbance", hue="Time", palette=[colors["Color 2"], colors["Color 4"]], s=50, zorder=2)
+
+# Add new points
+plt.scatter(extra_conc, extra_absorbance, color=colors["Color 5"], s=40, marker='x', label="Measured Sample \n Absorbances", zorder=3)
+
+# Set log scale for x-axis
+plt.xscale('log')
+
+# Set only major ticks where 10^x occurs
+plt.xticks([0.1, 1, 10, 100], labels=[r"$10^{-1}$",r"$10^{0}$", r"$10^{1}$", r"$10^{2}$"])
+
+# Disable minor ticks
+plt.tick_params(axis='x', which='minor', bottom=False)
+
+# Customize major ticks
+plt.tick_params(axis='x', which='major', length=5, width=1.5, direction='out', color='black')
+
+# Customize the plot
+plt.xlabel("BSA Concentration / μg/mL")
+plt.ylabel("Absorbance / AU")
+plt.legend(fontsize=8)
+
+# Add box around the axes
+ax = plt.gca()
+for spine in ax.spines.values():
+    spine.set_visible(True)
+    spine.set_linewidth(1.5)
+
+plt.tick_params(axis='x', which='both', length=5, width=1, direction='out', color='black')
+
+# Show the plot
+plt.show()
 
